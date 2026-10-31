@@ -33,22 +33,31 @@ SECRET_KEY=一串随机长字符串
 ```bash
 createdb medical_assistant
 cd database
-python import_db.py
+python init_postgres.py
 ```
 
-该脚本会导入 `schema.sql` + 全部药品数据（`seed_data.sql`、`more_drugs.sql`、`supplement_drugs.sql`，约 50 种药品）。
+该脚本会执行 `schema.sql` 建表，并导入全部药品种子数据（`seed_data.sql`、`more_drugs.sql`、`supplement_drugs.sql`，约 50 种药品）。脚本是幂等的：表已存在时自动跳过、可重复执行；`--force` 参数可清库重建。
 
 ### 3. 安装依赖并启动
 
 ```bash
+# 后端
 cd backend
 pip install -r requirements.txt
+
+# 前端（Vite + React，构建产物由后端托管；不构建则页面无法打开）
+cd ../web
+npm install
+npm run build
+
+# 启动后端（同时托管前端构建产物）
+cd ../backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 4. 访问
 
-- 前端：http://127.0.0.1:8000
+- 前端：http://127.0.0.1:8000 （未登录为启动页）
 - API 文档：http://127.0.0.1:8000/docs
 
 ## 配置说明
