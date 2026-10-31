@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Redis dump
+dump.rdb
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Crawler data
+crawler/data/
+crawler/output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Frontend
+node_modules/
+web/dist/
+.taste-skill/
+
+# 个人/非项目文件（勿提交）
+resume/
+*.docx
+*.pdf
+简历项目描述.md
+
+# 已废弃的旧代码（待手动删除，避免误提交）
+demo_prototype.py
+init_sqlite_db.py
+start.py
+test_system.py
+database/add_auth_columns.py
+database/create_sessions_table.py
+database/create_medications.py
