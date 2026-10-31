@@ -26,11 +26,12 @@ from db_config import db_config  # noqa: E402
 import psycopg2  # noqa: E402
 
 SQL_FILES = ["schema.sql", "seed_data.sql", "more_drugs.sql", "supplement_drugs.sql"]
-# 每个 seed 文件对应的主表（用于判断是否已导入）
+# 每个 seed 文件对应的主表 + 是否仅在表为空时导入
+# seed_data 是基础数据（空表才导）；more/supplement 是追加数据（总是执行，靠 ON CONFLICT 幂等）
 SEED_TABLES = {
-    "seed_data.sql": "drugs",
-    "more_drugs.sql": "drugs",
-    "supplement_drugs.sql": "drugs",
+    "seed_data.sql": ("drugs", True),
+    "more_drugs.sql": ("drugs", False),
+    "supplement_drugs.sql": ("drugs", False),
 }
 
 # 常见的 psql 安装位置（Windows），也可用环境变量 PSQL 指定
@@ -62,6 +63,12 @@ def make_idempotent(sql: str) -> str:
     sql = re.sub(
         r"(INSERT INTO system_config\s*\([^)]*\)\s*VALUES)(.*?);",
         lambda m: m.group(1) + m.group(2) + " ON CONFLICT (config_key) DO NOTHING;",
+        sql, flags=re.I | re.S,
+    )
+    # 种子数据的药品 INSERT：按 drug_id 去重，重复执行不报错
+    sql = re.sub(
+        r"(INSERT INTO drugs\s*\([^)]*\)\s*VALUES)(.*?);",
+        lambda m: m.group(1) + m.group(2) + " ON CONFLICT (drug_id) DO NOTHING;",
         sql, flags=re.I | re.S,
     )
     # 触发器：先 DROP IF EXISTS 再重建（psql 无 CREATE OR REPLACE TRIGGER）
@@ -120,13 +127,13 @@ def main():
     run_psql_file(psql, cfg, DB_DIR / "schema.sql", rewrite=True)
     print("[✓] schema.sql 执行完成（表/索引/函数/触发器已就绪）")
 
-    # 2) 种子数据（幂等：表为空才导入）
-    for fname, table in SEED_TABLES.items():
+    # 2) 种子数据（幂等：基础数据表为空才导，追加数据总是执行）
+    for fname, (table, only_if_empty) in SEED_TABLES.items():
         path = DB_DIR / fname
-        if table_has_rows(cur, table) and not force:
+        if not force and only_if_empty and table_has_rows(cur, table):
             print(f"[=] {fname}：{table} 已有数据，跳过（--force 可强制重导）")
             continue
-        run_psql_file(psql, cfg, path)
+        run_psql_file(psql, cfg, path, rewrite=True)
         cur.execute(f'SELECT count(*) FROM "{table}"')
         total = cur.fetchone()[0]
         print(f"[✓] {fname} 导入完成（{table} 现有 {total} 行）")
