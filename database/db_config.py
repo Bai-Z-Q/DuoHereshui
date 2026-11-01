@@ -5,6 +5,7 @@
 """
 
 import os
+import urllib.parse
 from pathlib import Path
 
 try:
@@ -23,9 +24,24 @@ except Exception:  # 没有 python-dotenv 或 .env 时静默降级
 def db_config() -> dict:
     """返回 psycopg2.connect(**db_config()) 所需的关键字参数
 
-    优先读取 DATABASE_* 分项；未设置时兼容 Railway 等托管平台
-    注入的 PG* 前缀变量（PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE）。
+    优先级：
+      1. DATABASE_URL 完整连接串（Render 等平台注入，如 postgres://user:pass@host:port/db）
+      2. DATABASE_* 分项变量
+      3. PG* 前缀变量（Railway 等平台注入：PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE）
+      4. 本地默认值
     """
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if url:
+        p = urllib.parse.urlparse(url)
+        return {
+            "host": p.hostname or "localhost",
+            "port": p.port or 5432,
+            "dbname": p.path.lstrip("/") or "medical_assistant",
+            "user": urllib.parse.unquote(p.username) if p.username else "postgres",
+            "password": urllib.parse.unquote(p.password) if p.password else "",
+            "options": "-c client_encoding=UTF8",
+        }
+
     def pick(primary: str, pg: str, default):
         return os.environ.get(primary) or os.environ.get(pg) or default
 
