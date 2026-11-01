@@ -4,16 +4,20 @@
 从环境变量读取配置信息
 """
 import os
+from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+# 项目根目录（backend/app/config.py → 上溯两级）
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
     """应用配置"""
 
     # 数据库配置
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/medical_assistant"
+    DATABASE_URL: str = "postgresql+psycopg2://user:password@localhost:5432/medical_assistant"
     DATABASE_HOST: str = "localhost"
     DATABASE_PORT: int = 5432
     DATABASE_NAME: str = "medical_assistant"
@@ -41,6 +45,11 @@ class Settings(BaseSettings):
     # 日志配置
     LOG_LEVEL: str = "INFO"
 
+    # 爬虫配置（供 crawler 脚本使用；后端启动不依赖，缺失时用默认值）
+    CRAWLER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    CRAWLER_DELAY: int = 2
+    CRAWLER_MAX_RETRIES: int = 3
+
     # ===== LLM / Agent 配置 =====
     # 支持任何 OpenAI 兼容接口：DeepSeek、通义千问、豆包、Moonshot、OpenAI 等
     # 在 .env 里填自己的 key，不要写死在代码里
@@ -64,7 +73,8 @@ class Settings(BaseSettings):
     ]
 
     class Config:
-        env_file = ".env"
+        # 先读 backend/.env（若存在），再读项目根 .env；显式环境变量始终优先
+        env_file = (".env", str(BASE_DIR / ".env"))
         case_sensitive = True
 
 

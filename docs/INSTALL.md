@@ -5,15 +5,15 @@
 - Python 3.9+
 - PostgreSQL 12+
 
-> Redis / Celery 不再需要，核心功能只需 PostgreSQL。
+> 无需单独运行 Redis / Celery 服务（后端启动不依赖它们）。
 
 ## 快速开始
 
 ### 1. 克隆并配置
 
 ```bash
-git clone <你的仓库地址>
-cd personal-medical-assistant
+git clone https://github.com/Bai-Z-Q/DuoHereshui.git
+cd DuoHereshui
 cp .env.example .env
 ```
 
@@ -27,6 +27,8 @@ DATABASE_USER=postgres
 DATABASE_PASSWORD=你的密码
 SECRET_KEY=一串随机长字符串
 ```
+
+> `DATABASE_URL` 可保持模板原样：后端会按上面分项自动拼装连接串（驱动为 `postgresql+psycopg2`）。
 
 ### 2. 初始化数据库
 

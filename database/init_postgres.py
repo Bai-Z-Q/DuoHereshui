@@ -15,6 +15,7 @@ PostgreSQL 一键初始化脚本（幂等，可重复执行）
 """
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -45,10 +46,19 @@ PSQL_CANDIDATES = [
 
 
 def find_psql() -> str:
+    # 1) 显式环境变量 PSQL
+    # 2) PATH 中的 psql（Linux 容器 / 常规安装）
+    # 3) Windows 常见安装路径
+    env_psql = os.environ.get("PSQL", "")
+    if env_psql and Path(env_psql).exists():
+        return env_psql
+    which = shutil.which("psql")
+    if which:
+        return which
     for cand in PSQL_CANDIDATES:
         if cand and Path(cand).exists():
             return cand
-    raise RuntimeError("找不到 psql，请设置环境变量 PSQL 指向 psql.exe")
+    raise RuntimeError("找不到 psql，请设置环境变量 PSQL 指向 psql 可执行文件")
 
 
 def make_idempotent(sql: str) -> str:

@@ -21,13 +21,20 @@ except Exception:  # 没有 python-dotenv 或 .env 时静默降级
 
 
 def db_config() -> dict:
-    """返回 psycopg2.connect(**db_config()) 所需的关键字参数"""
+    """返回 psycopg2.connect(**db_config()) 所需的关键字参数
+
+    优先读取 DATABASE_* 分项；未设置时兼容 Railway 等托管平台
+    注入的 PG* 前缀变量（PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE）。
+    """
+    def pick(primary: str, pg: str, default):
+        return os.environ.get(primary) or os.environ.get(pg) or default
+
     return {
-        "host": os.environ.get("DATABASE_HOST", "localhost"),
-        "port": int(os.environ.get("DATABASE_PORT", "5432")),
-        "dbname": os.environ.get("DATABASE_NAME", "medical_assistant"),
-        "user": os.environ.get("DATABASE_USER", "postgres"),
-        "password": os.environ.get("DATABASE_PASSWORD", ""),
+        "host": pick("DATABASE_HOST", "PGHOST", "localhost"),
+        "port": int(pick("DATABASE_PORT", "PGPORT", "5432")),
+        "dbname": pick("DATABASE_NAME", "PGDATABASE", "medical_assistant"),
+        "user": pick("DATABASE_USER", "PGUSER", "postgres"),
+        "password": pick("DATABASE_PASSWORD", "PGPASSWORD", ""),
         "options": "-c client_encoding=UTF8",
     }
 
