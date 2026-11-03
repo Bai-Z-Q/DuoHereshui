@@ -162,16 +162,18 @@ python backend/tests/smoke_agent_api.py --base http://127.0.0.1:8000
 
 ## 公网部署
 
-两种免费方案：
+三种方案，按是否愿意绑卡选择：
 
-- **Hugging Face Spaces + Neon**（无需信用卡）：[docs/DEPLOY_HF_SPACES.md](docs/DEPLOY_HF_SPACES.md)
-- **Render + Neon**（Render 免费版需要绑卡验证）：[docs/DEPLOY_RENDER_NEON.md](docs/DEPLOY_RENDER_NEON.md)
+- **无卡、临时演示**：本机 + Cloudflare Tunnel / Tailscale Funnel（电脑需保持开机）：[docs/DEPLOY_TUNNEL.md](docs/DEPLOY_TUNNEL.md)
+- **Render + Neon**：Render 免费 Web Service 需要绑卡做身份验证（$1 临时预授权，不扣费）：[docs/DEPLOY_RENDER_NEON.md](docs/DEPLOY_RENDER_NEON.md)
+- **Hugging Face Docker Space**：2026-11 起需要 PRO 付费；免费 Static 不能运行 FastAPI/PostgreSQL。已有 PRO 时可参考 [docs/DEPLOY_HF_SPACES.md](docs/DEPLOY_HF_SPACES.md)
 
 仓库已包含 `render.yaml`、Docker 构建、自动建表与 Agent 平台迁移；HF 方案使用 `deploy/prepare_hf_space.ps1` 组装 Space 目录。
 
 ## 文档
 
 - [Agent 平台实现说明](docs/AGENT_PLATFORM.md)：架构、数据表、接口、与完善方案的对照及未实现项
+- [无卡公网演示：Cloudflare Tunnel / Tailscale Funnel](docs/DEPLOY_TUNNEL.md)
 - [Hugging Face Spaces + Neon 部署](docs/DEPLOY_HF_SPACES.md)
 - [Render + Neon 免费部署](docs/DEPLOY_RENDER_NEON.md)
 - [API 文档](docs/API.md)

@@ -1,6 +1,11 @@
 # Hugging Face Spaces + Neon 免费部署
 
-> 适合没有信用卡、不想用 Render 的情况。应用跑在 Hugging Face Docker Space（免费 CPU），数据库用 Neon 免费 PostgreSQL。
+> **2026-11 现状：Hugging Face 已将 Docker / Gradio Space 改为 PRO 付费，免费只保留 Static。**
+> Static Space 不能运行 FastAPI、PostgreSQL 或 SSE 流式对话，因此本文只适用于**已有 HF PRO**，或未来 HF 恢复免费 Docker 的情况。
+>
+> 如果不想付费、也不想绑卡，请改用 [Cloudflare Tunnel / Tailscale Funnel](DEPLOY_TUNNEL.md)（电脑需保持开机）；如果能接受绑卡验证，用 [Render + Neon](DEPLOY_RENDER_NEON.md)。
+
+> 适合已有 PRO 或未来政策变化的情况。应用跑在 Hugging Face Docker Space，数据库用 Neon 免费 PostgreSQL。
 >
 > 免费额度会变动，以 [HF Spaces](https://huggingface.co/docs/hub/spaces-overview) 和 [Neon Plans](https://neon.com/docs/introduction/plans) 为准。
 
