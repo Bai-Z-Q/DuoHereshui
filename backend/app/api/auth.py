@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..database import get_db
+from ..config import settings
 from ..utils.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -48,6 +49,11 @@ class LoginBody(BaseModel):
 
 @router.post("/register")
 async def register(body: RegisterBody, db: Session = Depends(get_db)):
+    if not settings.REGISTRATION_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail="当前为演示环境，注册已关闭；请联系管理员开通账号",
+        )
     exists = db.execute(
         text("SELECT 1 FROM user_profiles WHERE username = :u"),
         {"u": body.username},

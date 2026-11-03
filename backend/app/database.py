@@ -34,7 +34,9 @@ engine = create_engine(
     pool_pre_ping=True,  # 自动检测连接有效性
     pool_size=10,
     max_overflow=20,
-    echo=settings.DEBUG  # 开发环境下打印SQL
+    # 统一客户端编码，避免 Windows 中文环境下 psycopg2 解码报错信息失败
+    connect_args={"client_encoding": "utf8"},
+    echo=settings.SQL_ECHO  # 需要排查 SQL 时在 .env 设置 SQL_ECHO=True
 )
 
 # 创建Session工厂
@@ -43,10 +45,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # 声明基类
 Base = declarative_base()
 
-# Redis连接
+# Redis连接（设置超时：本地未启动 Redis 时快速失败，不拖慢启动）
 redis_client = redis.Redis.from_url(
     settings.REDIS_URL,
-    decode_responses=True
+    decode_responses=True,
+    socket_connect_timeout=1,
+    socket_timeout=1,
 )
 
 

@@ -58,6 +58,18 @@ async def update_my_profile(
     updates = []
     params = {"uid": current_user}
 
+    if profile.username is not None:
+        username = profile.username.strip()
+        if not username:
+            raise HTTPException(status_code=400, detail="昵称不能为空")
+        duplicate = db.execute(
+            text("SELECT 1 FROM user_profiles WHERE username = :n AND user_id <> :uid"),
+            {"n": username, "uid": current_user},
+        ).fetchone()
+        if duplicate:
+            raise HTTPException(status_code=400, detail="昵称已被使用")
+        updates.append("username = :username")
+        params["username"] = username
     if profile.age is not None:
         updates.append("age = :age")
         params["age"] = profile.age

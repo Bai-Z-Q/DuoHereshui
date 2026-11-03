@@ -10,6 +10,8 @@ import DrugsPage from './components/DrugsPage.jsx'
 import SafetyPage from './components/SafetyPage.jsx'
 import MedicationsPage from './components/MedicationsPage.jsx'
 import ProfilePage from './components/ProfilePage.jsx'
+import MemoryPage from './components/MemoryPage.jsx'
+import InsightsPage from './components/InsightsPage.jsx'
 import LLMModal from './components/LLMModal.jsx'
 import { ToastHost, ModalHost } from './components/Modals.jsx'
 
@@ -207,6 +209,8 @@ export default function App() {
             {view === 'drug-detail' && <DrugsPage detail />}
             {view === 'safety' && <SafetyPage />}
             {view === 'medications' && <MedicationsPage />}
+            {view === 'memory' && <MemoryPage />}
+            {view === 'insights' && <InsightsPage />}
             {view === 'profile' && <ProfilePage />}
           </main>
           {llmOpen && <LLMModal />}

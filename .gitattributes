@@ -1,0 +1,13 @@
+# 统一换行符，避免 Linux 容器里的 entrypoint.sh / Dockerfile 因 CRLF 启动失败
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.py text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sql text eol=lf

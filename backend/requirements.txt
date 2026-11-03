@@ -10,3 +10,8 @@ python-multipart>=0.0.6
 PyJWT>=2.8.0
 bcrypt>=4.1.1
 openai>=1.30.0
+
+# ===== LangGraph 编排（v1.3）=====
+# Python 3.14 已验证可用；LangChain Core 作为 LangGraph 的消息/工具基础层
+langgraph==1.2.19
+langchain-core==1.7.3

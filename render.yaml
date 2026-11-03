@@ -1,0 +1,59 @@
+# Render Blueprint：Docker Web Service
+# 数据库使用 Neon 免费 PostgreSQL，通过 DATABASE_URL 注入
+services:
+  - type: web
+    name: medical-assistant
+    runtime: docker
+    plan: free
+    # 与 Neon 项目同区域：当前 Neon 在 AWS US East 2 (Ohio)
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Neon 连接串，形如：
+      # postgresql://user:password@ep-xxx.neon.tech/neondb?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSLMODE
+        value: require
+
+      # JWT 签名密钥：Render 首次创建时随机生成
+      - key: SECRET_KEY
+        generateValue: true
+
+      # 生产配置
+      - key: DEBUG
+        value: false
+      - key: SQL_ECHO
+        value: false
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: TZ
+        value: Asia/Shanghai
+      # 让 PostgreSQL 会话也使用上海时区，避免 UTC 下 CURRENT_DATE 与提醒时间错位
+      - key: PGTZ
+        value: Asia/Shanghai
+
+      # LangGraph 编排
+      - key: AGENT_ENGINE
+        value: langgraph
+      - key: AGENT_GRAPH_CHECKPOINTER
+        value: true
+
+      # 公网安全：首次部署填 true 创建管理员账号，之后在 Dashboard 改为 false
+      # 使用 sync: false，避免后续 Blueprint 同步把 Dashboard 的修改覆盖回 true
+      - key: REGISTRATION_ENABLED
+        sync: false
+      # 锁定全局模型配置：公网用户不能修改 LLM Base URL / Key / 模型
+      - key: ALLOW_LLM_SETTINGS
+        value: false
+
+      # 模型配置（可选；不填则自动使用本地药品库规则版）
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.deepseek.com/v1
+      - key: LLM_MODEL
+        value: deepseek-chat

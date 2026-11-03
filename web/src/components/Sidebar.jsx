@@ -8,6 +8,8 @@ const NAV = [
   { view: 'drugs', label: '药品查询' },
   { view: 'safety', label: '用药安全检查' },
   { view: 'medications', label: '用药管理' },
+  { view: 'memory', label: '记忆中心' },
+  { view: 'insights', label: '安全与洞察' },
   { view: 'profile', label: '健康档案' },
 ]
 

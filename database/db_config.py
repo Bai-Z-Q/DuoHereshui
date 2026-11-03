@@ -21,11 +21,37 @@ except Exception:  # 没有 python-dotenv 或 .env 时静默降级
     pass
 
 
+def _url_param(url_query: str, key: str) -> str:
+    if not url_query:
+        return ""
+    params = urllib.parse.parse_qs(url_query)
+    return (params.get(key) or [""])[0]
+
+
+def _ssl_mode(url_query: str = "") -> str:
+    """解析 sslmode：URL ?sslmode=require 优先，其次 PGSSLMODE / DATABASE_SSLMODE"""
+    return (
+        _url_param(url_query, "sslmode")
+        or os.environ.get("PGSSLMODE")
+        or os.environ.get("DATABASE_SSLMODE")
+        or ""
+    )
+
+
+def _channel_binding(url_query: str = "") -> str:
+    """Neon 连接串常带 channel_binding=require，需要透传给 psycopg2/psql"""
+    return (
+        _url_param(url_query, "channel_binding")
+        or os.environ.get("PGCHANNELBINDING")
+        or ""
+    )
+
+
 def db_config() -> dict:
     """返回 psycopg2.connect(**db_config()) 所需的关键字参数
 
     优先级：
-      1. DATABASE_URL 完整连接串（Render 等平台注入，如 postgres://user:pass@host:port/db）
+      1. DATABASE_URL 完整连接串（Render/Neon 等平台注入，如 postgres://user:pass@host:port/db?sslmode=require）
       2. DATABASE_* 分项变量
       3. PG* 前缀变量（Railway 等平台注入：PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE）
       4. 本地默认值
@@ -33,7 +59,7 @@ def db_config() -> dict:
     url = os.environ.get("DATABASE_URL", "").strip()
     if url:
         p = urllib.parse.urlparse(url)
-        return {
+        cfg = {
             "host": p.hostname or "localhost",
             "port": p.port or 5432,
             "dbname": p.path.lstrip("/") or "medical_assistant",
@@ -41,11 +67,18 @@ def db_config() -> dict:
             "password": urllib.parse.unquote(p.password) if p.password else "",
             "options": "-c client_encoding=UTF8",
         }
+        sslmode = _ssl_mode(p.query)
+        if sslmode:
+            cfg["sslmode"] = sslmode
+        channel_binding = _channel_binding(p.query)
+        if channel_binding:
+            cfg["channel_binding"] = channel_binding
+        return cfg
 
     def pick(primary: str, pg: str, default):
         return os.environ.get(primary) or os.environ.get(pg) or default
 
-    return {
+    cfg = {
         "host": pick("DATABASE_HOST", "PGHOST", "localhost"),
         "port": int(pick("DATABASE_PORT", "PGPORT", "5432")),
         "dbname": pick("DATABASE_NAME", "PGDATABASE", "medical_assistant"),
@@ -53,12 +86,27 @@ def db_config() -> dict:
         "password": pick("DATABASE_PASSWORD", "PGPASSWORD", ""),
         "options": "-c client_encoding=UTF8",
     }
+    sslmode = _ssl_mode()
+    if sslmode:
+        cfg["sslmode"] = sslmode
+    channel_binding = _channel_binding()
+    if channel_binding:
+        cfg["channel_binding"] = channel_binding
+    return cfg
 
 
 def db_dsn() -> str:
     """返回 SQLAlchemy 风格的连接串"""
     cfg = db_config()
-    return (
+    dsn = (
         f"postgresql://{cfg['user']}:{cfg['password']}@"
         f"{cfg['host']}:{cfg['port']}/{cfg['dbname']}"
     )
+    params = {}
+    if cfg.get("sslmode"):
+        params["sslmode"] = cfg["sslmode"]
+    if cfg.get("channel_binding"):
+        params["channel_binding"] = cfg["channel_binding"]
+    if params:
+        dsn += "?" + urllib.parse.urlencode(params)
+    return dsn

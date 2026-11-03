@@ -12,6 +12,7 @@ from ..database import get_db
 from ..models.schemas import (
     MedicationCreate,
     MedicationResponse,
+    MedicationUpdate,
     MedicationLogCreate,
 )
 from ..utils.security import get_current_user
@@ -170,6 +171,94 @@ async def get_today_medications(
             }
         )
     return {"medications": meds}
+
+
+@router.put("/medications/{medication_id}", response_model=MedicationResponse)
+async def update_medication(
+    medication_id: int,
+    body: MedicationUpdate,
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """修改用药记录（剂量、频次、提醒时间、起止日期、备注、启用状态）"""
+    _assert_med_owner(db, medication_id, current_user)
+
+    updates = []
+    params = {"m": medication_id}
+
+    if body.dosage is not None:
+        dosage = body.dosage.strip()
+        if not dosage:
+            raise HTTPException(400, "剂量不能为空")
+        updates.append("dosage = :dosage")
+        params["dosage"] = dosage
+    if body.frequency is not None:
+        frequency = body.frequency.strip()
+        if not frequency:
+            raise HTTPException(400, "频次不能为空")
+        updates.append("frequency = :frequency")
+        params["frequency"] = frequency
+    if body.reminder_times is not None:
+        updates.append("reminder_times = :reminder_times")
+        params["reminder_times"] = body.reminder_times.strip()
+    if body.start_date is not None:
+        updates.append("start_date = :start_date")
+        params["start_date"] = body.start_date
+    if body.end_date is not None:
+        updates.append("end_date = :end_date")
+        params["end_date"] = body.end_date
+    elif "end_date" in body.model_fields_set:
+        # 显式传 null 时清空结束日期
+        updates.append("end_date = NULL")
+    if body.notes is not None:
+        updates.append("notes = :notes")
+        params["notes"] = body.notes.strip()
+    if body.is_active is not None:
+        updates.append("is_active = :is_active")
+        params["is_active"] = body.is_active
+
+    if not updates:
+        raise HTTPException(400, "没有提供要修改的字段")
+
+    try:
+        result = db.execute(
+            text(
+                f"""UPDATE user_medications
+                    SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP
+                    WHERE medication_id = :m
+                    RETURNING medication_id, user_id, drug_id, start_date, end_date,
+                              dosage, frequency, reminder_times, notes, is_active, created_at"""
+            ),
+            params,
+        ).fetchone()
+        if not result:
+            raise HTTPException(404, "用药记录不存在")
+        db.commit()
+
+        drug_name = db.execute(
+            text("SELECT generic_name FROM drugs WHERE drug_id = :d"),
+            {"d": result[2]},
+        ).fetchone()
+
+        return {
+            "medication_id": result[0],
+            "user_id": str(result[1]),
+            "drug_id": result[2],
+            "drug_name": drug_name[0] if drug_name else None,
+            "start_date": result[3],
+            "end_date": result[4],
+            "dosage": result[5],
+            "frequency": result[6],
+            "reminder_times": result[7],
+            "notes": result[8],
+            "is_active": result[9],
+            "created_at": result[10],
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"修改用药记录失败: {exc}")
 
 
 @router.put("/medications/{medication_id}/deactivate")

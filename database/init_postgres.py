@@ -97,6 +97,12 @@ def run_psql_file(psql: str, cfg: dict, path: Path, rewrite: bool = False):
         sql = make_idempotent(sql)
     env = dict(os.environ)
     env["PGPASSWORD"] = cfg["password"]
+    env["PGCLIENTENCODING"] = "UTF8"
+    # Neon/Supabase 等托管 PostgreSQL 通常要求 SSL；DATABASE_URL 里的 sslmode 透传给 psql
+    if cfg.get("sslmode"):
+        env["PGSSLMODE"] = cfg["sslmode"]
+    if cfg.get("channel_binding"):
+        env["PGCHANNELBINDING"] = cfg["channel_binding"]
     proc = subprocess.run(
         [psql, "-h", cfg["host"], "-p", str(cfg["port"]), "-U", cfg["user"],
          "-d", cfg["dbname"], "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],

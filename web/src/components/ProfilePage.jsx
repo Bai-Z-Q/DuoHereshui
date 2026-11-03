@@ -67,9 +67,9 @@ export default function ProfilePage() {
           <div className="form-group"><label>性别</label>
             <select value={f.gender} onChange={set('gender')}>
               <option value="">未选择</option>
-              <option value="male">男</option>
-              <option value="female">女</option>
-              <option value="other">其他</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+              <option value="其他">其他</option>
             </select></div>
           <div className="form-group"><label>身高</label>
             <input type="number" value={f.height} onChange={set('height')} placeholder="cm" /></div>
@@ -83,7 +83,8 @@ export default function ProfilePage() {
         <div className="form-group"><label>特殊人群</label>
           <select value={f.specialGroup} onChange={set('specialGroup')}>
             <option value="">无</option>
-            <option value="pregnant">孕期/哺乳期</option>
+            <option value="pregnant">孕期</option>
+            <option value="nursing">哺乳期</option>
             <option value="child">儿童</option>
             <option value="elderly">老年人</option>
           </select></div>

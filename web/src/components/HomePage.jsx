@@ -6,12 +6,15 @@ import FadeContent from './bits/FadeContent/FadeContent.jsx'
 import GlareHover from './bits/GlareHover.jsx'
 import Magnet from './bits/Magnet/Magnet.jsx'
 import CountUp from './bits/CountUp/CountUp.jsx'
+import { parseReminderTimes } from './ReminderTimes.jsx'
 
 const FEATURES = [
-  { view: 'chat', name: '描述症状，获取用药建议', desc: '告诉助手你哪里不舒服，它会从常用 OTC 药里推荐合适的品种。' },
+  { view: 'chat', name: '描述症状，获取用药建议', desc: '告诉助手你哪里不舒服，它会从常用 OTC 药里推荐合适的品种，并标注资料来源。' },
   { view: 'drugs', name: '查询药品详细信息', desc: '适应症、用法用量、副作用、禁忌、储存方式，一屏看全。' },
   { view: 'safety', name: '用药安全检查', desc: '结合你的过敏史与慢性病，提示潜在风险与相互作用。' },
-  { view: 'medications', name: '用药管理与提醒', desc: '记录正在服用的药、设置提醒时间，按时打卡不漏服。' },
+  { view: 'medications', name: '用药管理与提醒', desc: '记录正在服用的药、设置提醒时间，自动检测漏服并生成周报。' },
+  { view: 'memory', name: '查看你的健康记忆', desc: '对话里提到的过敏史、用药史会先征求确认，再沉淀进档案，可随时撤回。' },
+  { view: 'insights', name: '安全与洞察', desc: '查看每次回答的检索来源、工具调用与风险判定，支持审计回放。' },
   { view: 'profile', name: '维护个人健康档案', desc: '性别、年龄、身高体重、慢性病与过敏史，建议更贴合你。' },
 ]
 
@@ -30,7 +33,7 @@ function nextReminder(meds) {
   const hm = todayHM(now)
   let best = null
   for (const m of meds) {
-    const times = String(m.reminder_times || '').split(',').map(t => t.trim()).filter(Boolean)
+    const times = parseReminderTimes(m.reminder_times)
     for (const t of times) {
       if (t >= hm && (best === null || t < best)) best = t
     }
@@ -39,7 +42,7 @@ function nextReminder(meds) {
   // 明天最早
   let earliest = null
   for (const m of meds) {
-    const times = String(m.reminder_times || '').split(',').map(t => t.trim()).filter(Boolean)
+    const times = parseReminderTimes(m.reminder_times)
     for (const t of times) {
       if (earliest === null || t < earliest) earliest = t
     }

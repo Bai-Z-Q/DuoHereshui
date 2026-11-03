@@ -39,6 +39,10 @@ class ChatMessage(BaseModel):
     user_id: str = Field(..., description="用户ID")
     message: str = Field(..., description="消息内容")
     session_id: Optional[str] = Field(None, description="会话ID")
+    answer_to: Optional[str] = Field(
+        None,
+        description="前端选项回传的追问维度（duration/temperature/severity/accompanying），表示本条消息是对上一轮分诊追问的回答",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -91,13 +95,14 @@ class UserProfileCreate(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     """更新用户档案"""
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    height: Optional[float] = None
-    weight: Optional[float] = None
+    username: Optional[str] = Field(None, min_length=1, max_length=100)
+    age: Optional[int] = Field(None, ge=0, le=150)
+    gender: Optional[str] = Field(None, pattern="^(男|女|其他)$")
+    height: Optional[float] = Field(None, ge=0, le=300)
+    weight: Optional[float] = Field(None, ge=0, le=500)
     chronic_conditions: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
-    special_group: Optional[str] = None
+    special_group: Optional[str] = Field(None, pattern="^(pregnant|nursing|elderly|child)$")
 
 
 class UserProfileResponse(BaseModel):
@@ -149,6 +154,17 @@ class MedicationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MedicationUpdate(BaseModel):
+    """修改用药记录（仅允许改剂量/频次/提醒/日期/备注/启用状态）"""
+    dosage: Optional[str] = Field(None, max_length=100)
+    frequency: Optional[str] = Field(None, max_length=100)
+    reminder_times: Optional[str] = Field(None, max_length=200)
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    notes: Optional[str] = Field(None, max_length=2000)
+    is_active: Optional[bool] = None
 
 
 class MedicationLogCreate(BaseModel):

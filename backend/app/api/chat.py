@@ -1,15 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-对话 API 路由 —— 基于 Agent
-所有接口需登录，且只能访问当前用户自己的会话/历史。
-"""
-from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-import uuid
-import json
+对话 API —— Leader-Worker 编排版
 
+- 所有接口需登录，且只能访问当前用户自己的会话/历史；
+- 流式事件新增 stage / risk / citations / options / memory_suggestions / done；
+- 助手消息把 trace、风险、引用写入 conversation_history.metadata，刷新后可回看；
+- 会话结束后自动沉淀对话摘要（模块 1），并写入 trace（模块 5）。
+"""
+import json
+import uuid
+from typing import Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from ..agent.memory import MemoryService
+from ..config import settings
 from ..database import get_db
 from ..models.schemas import ChatMessage, ChatResponse
 from ..services.agent_service import MedicalAgent
@@ -19,7 +27,37 @@ router = APIRouter()
 agent = MedicalAgent()
 
 
-def _load_history(db: Session, session_id: str, limit: int = 10):
+# ============================================================
+# 通用工具
+# ============================================================
+def _sse(event: Dict) -> str:
+    return f"data: {json.dumps(event, ensure_ascii=False, separators=(',', ':'), default=str)}\n\n"
+
+
+def _load_profile(db: Session, user_id: str) -> Dict:
+    row = db.execute(
+        text(
+            """SELECT username, age, gender, height, weight,
+                      chronic_conditions, allergies, special_group
+               FROM user_profiles WHERE user_id = :uid"""
+        ),
+        {"uid": user_id},
+    ).fetchone()
+    if not row:
+        return {}
+    return {
+        "username": row[0],
+        "age": row[1],
+        "gender": row[2],
+        "height": float(row[3]) if row[3] is not None else None,
+        "weight": float(row[4]) if row[4] is not None else None,
+        "chronic_conditions": list(row[5] or []),
+        "allergies": list(row[6] or []),
+        "special_group": row[7],
+    }
+
+
+def _load_history(db: Session, session_id: str, limit: int = 10) -> List[Dict]:
     rows = db.execute(
         text(
             """SELECT message_role, message_content
@@ -36,33 +74,66 @@ def _load_history(db: Session, session_id: str, limit: int = 10):
     return history
 
 
-def _save(db, user_id, session_id, role, content, intent):
+def _ensure_session(db: Session, user_id: str, session_id: str, title_source: str):
+    db.execute(
+        text(
+            """INSERT INTO chat_sessions (session_id, user_id, title)
+               SELECT :s, :u, :t
+               WHERE NOT EXISTS (SELECT 1 FROM chat_sessions WHERE session_id=:s)"""
+        ),
+        {"s": session_id, "u": user_id, "t": (title_source or "新对话")[:20]},
+    )
+    db.execute(
+        text("UPDATE chat_sessions SET updated_at=CURRENT_TIMESTAMP WHERE session_id=:s"),
+        {"s": session_id},
+    )
+
+
+def _save(
+    db: Session,
+    user_id: str,
+    session_id: str,
+    role: str,
+    content: str,
+    intent: Optional[str] = None,
+    metadata: Optional[Dict] = None,
+):
     try:
         if role == "user":
-            db.execute(
-                text(
-                    """INSERT INTO chat_sessions (session_id, user_id, title)
-                       SELECT :s, :u, :t
-                       WHERE NOT EXISTS (SELECT 1 FROM chat_sessions WHERE session_id=:s)"""
-                ),
-                {"s": session_id, "u": user_id, "t": content[:20]},
-            )
-            db.execute(
-                text("UPDATE chat_sessions SET updated_at=CURRENT_TIMESTAMP WHERE session_id=:s"),
-                {"s": session_id},
-            )
+            _ensure_session(db, user_id, session_id, content)
         db.execute(
             text(
                 """INSERT INTO conversation_history
-                   (user_id, session_id, message_role, message_content, intent)
-                   VALUES (:u, :s, :r, :c, :i)"""
+                   (user_id, session_id, message_role, message_content, intent, metadata)
+                   VALUES (:u, :s, :r, :c, :i, CAST(:m AS JSONB))"""
             ),
-            {"u": user_id, "s": session_id, "r": role, "c": content, "i": intent},
+            {
+                "u": user_id,
+                "s": session_id,
+                "r": role,
+                "c": content,
+                "i": intent,
+                "m": json.dumps(metadata, ensure_ascii=False) if metadata else None,
+            },
         )
         db.commit()
-    except Exception as e:
-        print(f"save history failed: {e}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"save history failed: {exc}")
         db.rollback()
+
+
+def _summarize(db: Session, user_id: str, session_id: str):
+    """会话摘要沉淀（规则版，不额外调用模型）"""
+    if not settings.AGENT_MEMORY_ENABLED:
+        return
+    try:
+        MemoryService.summarize_session(db, user_id, session_id)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[summary] 摘要沉淀失败: {exc}")
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _assert_owner(db: Session, session_id: str, current_user: str):
@@ -74,6 +145,9 @@ def _assert_owner(db: Session, session_id: str, current_user: str):
         raise HTTPException(status_code=403, detail="无权操作该会话")
 
 
+# ============================================================
+# 非流式对话
+# ============================================================
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     message: ChatMessage,
@@ -82,27 +156,49 @@ async def chat(
 ):
     try:
         agent.reload_from_db(db)
-        history = _load_history(db, message.session_id) if message.session_id else []
-
-        result = await agent.chat(db, message.message, history=history, user_id=current_user)
         session_id = message.session_id or str(uuid.uuid4())
+        history = _load_history(db, session_id) if message.session_id else []
+        profile = _load_profile(db, current_user)
+
+        result = await agent.chat(
+            db,
+            message.message,
+            history=history,
+            user_id=current_user,
+            session_id=session_id,
+            user_profile=profile,
+            answer_to=message.answer_to,
+        )
+        data = result.get("data") or {}
 
         _save(db, current_user, session_id, "user", message.message, result.get("intent"))
-        _save(db, current_user, session_id, "assistant", result["message"], result.get("intent"))
+        _save(
+            db,
+            current_user,
+            session_id,
+            "assistant",
+            result["message"],
+            result.get("intent"),
+            metadata=data,
+        )
+        _summarize(db, current_user, session_id)
 
         return ChatResponse(
             message=result["message"],
             intent=result.get("intent"),
             suggestions=[],
-            data=result.get("data"),
+            data=data,
             session_id=session_id,
         )
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"对话处理失败: {e}")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"对话处理失败: {exc}")
 
 
+# ============================================================
+# 流式对话
+# ============================================================
 @router.post("/chat/stream")
 async def chat_stream(
     message: ChatMessage,
@@ -110,66 +206,102 @@ async def chat_stream(
     db: Session = Depends(get_db),
 ):
     agent.reload_from_db(db)
-    history = _load_history(db, message.session_id) if message.session_id else []
     session_id = message.session_id or str(uuid.uuid4())
+    history = _load_history(db, session_id) if message.session_id else []
+    profile = _load_profile(db, current_user)
 
     async def event_gen():
-        full_text = []
-        try:
-            profile_row = db.execute(
-                text(
-                    """SELECT username, age, gender, height, weight,
-                              chronic_conditions, allergies, special_group
-                       FROM user_profiles WHERE user_id = :uid"""
-                ),
-                {"uid": current_user},
-            ).fetchone()
-            user_profile = None
-            if profile_row:
-                user_profile = {
-                    "username": profile_row[0],
-                    "age": profile_row[1],
-                    "gender": profile_row[2],
-                    "height": profile_row[3],
-                    "weight": profile_row[4],
-                    "chronic_conditions": profile_row[5] or [],
-                    "allergies": profile_row[6] or [],
-                    "special_group": profile_row[7],
-                }
+        full_text: List[str] = []
+        meta: Dict = {"citations": [], "memory_suggestions": []}
+        persisted = False
 
-            async for chunk in agent.stream_chat(
-                db, message.message, history=history,
-                user_profile=user_profile, user_id=current_user
+        def persist():
+            nonlocal persisted
+            if persisted:
+                return
+            intent = meta.get("intent") or "agent_reply"
+            _save(db, current_user, session_id, "user", message.message, intent)
+            _save(
+                db,
+                current_user,
+                session_id,
+                "assistant",
+                "".join(full_text),
+                intent,
+                metadata=meta,
+            )
+            persisted = True
+
+        try:
+            async for event in agent.stream_events(
+                db,
+                message.message,
+                history=history,
+                user_profile=profile,
+                user_id=current_user,
+                session_id=session_id,
+                answer_to=message.answer_to,
             ):
-                if '"type":"token"' in chunk:
-                    try:
-                        data = json.loads(chunk[6:].strip())
-                        if data.get("text"):
-                            full_text.append(data["text"])
-                    except Exception:
-                        pass
-                yield chunk
-            _save(db, current_user, session_id, "user", message.message, "user")
-            _save(db, current_user, session_id, "assistant", "".join(full_text), "agent_reply")
-            yield f'data: {{"type":"session","session_id":"{session_id}"}}\n\n'
-        except Exception as e:
-            yield f'data: {{"type":"error","text":"{str(e)}"}}\n\n'
+                event_type = event.get("type")
+                if event_type == "token":
+                    full_text.append(event.get("text", ""))
+                elif event_type == "risk":
+                    meta["risk"] = event
+                    meta["risk_level"] = event.get("level")
+                elif event_type == "citations":
+                    meta["citations"] = event.get("items") or []
+                elif event_type == "memory_suggestions":
+                    meta["memory_suggestions"] = event.get("items") or []
+                elif event_type == "done":
+                    for key in (
+                        "trace_id",
+                        "route",
+                        "model",
+                        "risk_level",
+                        "guardrail_blocked",
+                        "latency_ms",
+                        "intent",
+                    ):
+                        if event.get(key) is not None:
+                            meta[key] = event[key]
+                yield _sse(event)
+
+            persist()
+            yield _sse({"type": "session", "session_id": session_id})
+            _summarize(db, current_user, session_id)
+        except Exception as exc:  # noqa: BLE001
+            try:
+                persist()
+            except Exception:  # noqa: BLE001
+                pass
+            yield _sse({"type": "error", "text": f"对话处理失败：{str(exc)[:200]}"})
+        finally:
+            # 客户端提前断开时也尽量保存已生成内容
+            if not persisted and full_text:
+                try:
+                    persist()
+                except Exception:  # noqa: BLE001
+                    pass
 
     return StreamingResponse(
         event_gen(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
 
 
+# ============================================================
+# 历史与会话
+# ============================================================
 @router.get("/chat/history/{user_id}")
 async def get_chat_history(
     user_id: str,
     session_id: str = None,
-    limit: int = 20,
+    limit: int = 50,
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -178,31 +310,45 @@ async def get_chat_history(
 
     if session_id:
         query = text(
-            """SELECT message_role, message_content, intent, timestamp
+            """SELECT message_role, message_content, intent, timestamp, metadata
                FROM conversation_history
                WHERE user_id = :u AND session_id = :s
                ORDER BY timestamp DESC LIMIT :l"""
         )
         rows = db.execute(query, {"u": current_user, "s": session_id, "l": limit}).fetchall()
+        history = [
+            {
+                "role": r[0],
+                "content": r[1],
+                "intent": r[2],
+                "timestamp": r[3].isoformat() if r[3] else None,
+                "metadata": r[4] or {},
+                "session_id": session_id,
+            }
+            for r in rows
+        ]
     else:
         query = text(
-            """SELECT message_role, message_content, intent, timestamp, session_id
+            """SELECT message_role, message_content, intent, timestamp, metadata, session_id
                FROM conversation_history
                WHERE user_id = :u
                ORDER BY timestamp DESC LIMIT :l"""
         )
         rows = db.execute(query, {"u": current_user, "l": limit}).fetchall()
+        history = [
+            {
+                "role": r[0],
+                "content": r[1],
+                "intent": r[2],
+                "timestamp": r[3].isoformat() if r[3] else None,
+                "metadata": r[4] or {},
+                "session_id": r[5],
+            }
+            for r in rows
+        ]
 
-    history = [
-        {
-            "role": r[0],
-            "content": r[1],
-            "intent": r[2],
-            "timestamp": r[3].isoformat() if r[3] else None,
-            "session_id": r[4] if len(r) > 4 else session_id,
-        }
-        for r in rows
-    ]
+    # 前端按时间正序渲染
+    history.reverse()
     return {"history": history}
 
 
@@ -267,6 +413,10 @@ async def delete_session(
 ):
     _assert_owner(db, session_id, current_user)
     db.execute(text("DELETE FROM conversation_history WHERE session_id=:s"), {"s": session_id})
+    db.execute(
+        text("DELETE FROM memory_items WHERE user_id=:u AND source_session=:s"),
+        {"u": current_user, "s": session_id},
+    )
     db.execute(text("DELETE FROM chat_sessions WHERE session_id=:s"), {"s": session_id})
     db.commit()
     return {"ok": True}

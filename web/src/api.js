@@ -80,10 +80,12 @@ export async function loadChatHistory(userId, sessionId) {
 }
 
 // ---- 聊天（SSE 流式）----
-export async function chatStream(userId, message, sessionId, onEvent) {
+// answerTo：分诊选项回传的追问维度（duration/temperature/severity/accompanying），
+// 可选；后端据此把本条消息当作对上一轮追问的回答消费。
+export async function chatStream(userId, message, sessionId, onEvent, answerTo) {
   const resp = await apiFetch('/chat/stream', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId, message, session_id: sessionId })
+    body: JSON.stringify({ user_id: userId, message, session_id: sessionId, answer_to: answerTo })
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
@@ -145,6 +147,15 @@ export async function loadMedications() {
   const r = await apiFetch('/medications?active_only=false');
   return r.json();
 }
+export async function updateMedication(medId, body) {
+  const r = await apiFetch(`/medications/${medId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || '修改失败');
+  return data;
+}
 export async function deactivateMedication(medId) {
   await apiFetch(`/medications/${medId}/deactivate`, { method: 'PUT' });
 }
@@ -204,3 +215,148 @@ export async function testLLMSettings(body) {
   });
   return r.json();
 }
+
+// ====== Agent 平台 v1.2 ======
+
+// ---- 记忆中心 ----
+export async function memoryOverview() {
+  const r = await apiFetch('/memory/overview');
+  if (!r.ok) throw new Error('加载记忆失败');
+  return r.json();
+}
+export async function memorySearch(q, topK = 5) {
+  const r = await apiFetch(`/memory/search?q=${encodeURIComponent(q)}&top_k=${topK}`);
+  if (!r.ok) throw new Error('检索记忆失败');
+  return r.json();
+}
+export async function acceptMemorySuggestion(id) {
+  const r = await apiFetch(`/memory/suggestions/${id}/accept`, { method: 'POST' });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || '写入档案失败');
+  return data;
+}
+export async function rejectMemorySuggestion(id) {
+  const r = await apiFetch(`/memory/suggestions/${id}/reject`, { method: 'POST' });
+  if (!r.ok) throw new Error('忽略失败');
+  return r.json();
+}
+export async function addMemoryNote(content, kind = 'health_note') {
+  const r = await apiFetch('/memory/notes', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, kind })
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || '添加失败');
+  return data;
+}
+export async function deleteMemoryItem(id) {
+  const r = await apiFetch(`/memory/items/${id}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error('删除失败');
+  return r.json();
+}
+
+// ---- 知识库 ----
+export async function searchKnowledge(q, topK = 6) {
+  const r = await apiFetch(`/knowledge/search?q=${encodeURIComponent(q)}&top_k=${topK}`);
+  if (!r.ok) throw new Error('检索失败');
+  return r.json();
+}
+export async function knowledgeStats() {
+  const r = await apiFetch('/knowledge/stats');
+  return r.json();
+}
+export async function getKnowledgeChunk(chunkId) {
+  const r = await apiFetch(`/knowledge/chunks/${encodeURIComponent(chunkId)}`);
+  if (!r.ok) throw new Error('引用原文不可用');
+  return r.json();
+}
+
+// ---- 可观测 / 反馈 ----
+export async function obsMetrics(days = 7) {
+  const r = await apiFetch(`/observability/metrics?days=${days}`);
+  if (!r.ok) throw new Error('加载指标失败');
+  return r.json();
+}
+export async function obsTraces(limit = 30, risk = '') {
+  const q = risk ? `&risk=${risk}` : '';
+  const r = await apiFetch(`/observability/traces?limit=${limit}${q}`);
+  if (!r.ok) throw new Error('加载调用链失败');
+  const data = await r.json();
+  return data.items || [];
+}
+export async function obsTraceDetail(traceId) {
+  const r = await apiFetch(`/observability/traces/${encodeURIComponent(traceId)}`);
+  if (!r.ok) throw new Error('加载回放失败');
+  return r.json();
+}
+export async function submitFeedback(body) {
+  const r = await apiFetch('/feedback', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || '反馈失败');
+  return data;
+}
+export async function obsFeedback(limit = 20) {
+  const r = await apiFetch(`/observability/feedback?limit=${limit}`);
+  if (!r.ok) return [];
+  const data = await r.json();
+  return data.items || [];
+}
+
+// ---- 主动能力 ----
+export async function careDashboard() {
+  const r = await apiFetch('/care/dashboard');
+  if (!r.ok) throw new Error('加载用药看板失败');
+  return r.json();
+}
+export async function careWeeklyReport(days = 7) {
+  const r = await apiFetch(`/care/weekly-report?days=${days}`);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || '生成周报失败');
+  return data;
+}
+export async function careAlerts() {
+  const r = await apiFetch('/care/alerts');
+  if (!r.ok) throw new Error('加载药品警示失败');
+  return r.json();
+}
+export async function setCareSubscription(isActive) {
+  const r = await apiFetch('/care/subscription', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_active: isActive, channel: 'in_app' })
+  });
+  if (!r.ok) throw new Error('订阅设置失败');
+  return r.json();
+}
+export async function logMedicationAt(medId, scheduledTime, status) {
+  const now = new Date().toISOString();
+  const r = await apiFetch('/medications/logs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      medication_id: medId,
+      scheduled_time: scheduledTime,
+      actual_time: status === 'taken' ? now : null,
+      status
+    })
+  });
+  if (!r.ok) throw new Error('记录失败');
+  return r.json();
+}
+
+// ---- 数据导出 ----
+export async function downloadMyData(format = 'json') {
+  const r = await apiFetch(`/export/my-data?format=${format}`);
+  if (!r.ok) throw new Error('导出失败');
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `medical-data-${new Date().toISOString().slice(0, 10)}.${format === 'markdown' ? 'md' : 'json'}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+

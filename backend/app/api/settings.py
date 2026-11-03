@@ -7,9 +7,18 @@ from sqlalchemy import text
 from openai import OpenAI
 
 from ..database import get_db
+from ..config import settings
 from ..utils.security import get_current_user
 
 router = APIRouter()
+
+
+def _assert_llm_settings_allowed():
+    if not settings.ALLOW_LLM_SETTINGS:
+        raise HTTPException(
+            status_code=403,
+            detail="当前部署已锁定模型配置，请由管理员通过服务端环境变量配置",
+        )
 
 
 class LLMSettings(BaseModel):
@@ -42,6 +51,7 @@ def get_llm_settings(
             data["base_url"] = r[1] or ""
         elif r[0] == "llm_model":
             data["model"] = r[1] or "deepseek-chat"
+    data["locked"] = not settings.ALLOW_LLM_SETTINGS
     return data
 
 
@@ -51,6 +61,7 @@ def save_llm_settings(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _assert_llm_settings_allowed()
     pairs = {
         "llm_api_key": body.api_key,
         "llm_base_url": body.base_url,
@@ -76,6 +87,7 @@ def test_llm(
     db: Session = Depends(get_db),
 ):
     """用当前/传入的配置做一次最小连通性测试，不回传敏感信息"""
+    _assert_llm_settings_allowed()
     api_key = body.api_key
     base_url = body.base_url
     model = body.model or "deepseek-chat"

@@ -8,12 +8,14 @@ export default function LLMModal() {
   const [baseUrl, setBaseUrl] = useState('')
   const [model, setModel] = useState('deepseek-chat')
   const [keyHint, setKeyHint] = useState('')
+  const [locked, setLocked] = useState(false)
   const [testResult, setTestResult] = useState({ text: '', ok: null })
 
   useEffect(() => {
     api.getLLMSettings().then(data => {
       setBaseUrl(data.base_url || '')
       setModel(data.model || 'deepseek-chat')
+      setLocked(!!data.locked)
       if (data.api_key_masked) setKeyHint('已配置：' + data.api_key_masked + '（留空则保持不变）')
     }).catch(() => { /* 忽略 */ })
   }, [])
@@ -53,6 +55,18 @@ export default function LLMModal() {
     <div className="modal-overlay" style={{ display: 'flex' }} onClick={closeLLM}>
       <div className="modal-card" style={{ width: 440 }} onClick={e => e.stopPropagation()}>
         <h3>模型配置</h3>
+        {locked ? (
+          <>
+            <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.7, marginBottom: 18 }}>
+              当前部署已锁定模型配置，API Key 只能由管理员在服务端环境变量中配置。
+              如需修改，请联系部署管理员。
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn-link" onClick={closeLLM}>关闭</button>
+            </div>
+          </>
+        ) : (
+          <>
         <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.7, marginBottom: 12 }}>
           配置大模型 API Key 后，AI 助手会调用你的模型回答用药问题。留空则使用系统默认规则回答。
         </p>
@@ -69,6 +83,8 @@ export default function LLMModal() {
           <button className="btn-link" onClick={closeLLM}>取消</button>
           <button className="btn-primary-sm" onClick={save}>保存</button>
         </div>
+          </>
+        )}
       </div>
     </div>
   )

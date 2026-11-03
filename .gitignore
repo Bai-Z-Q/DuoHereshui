@@ -74,6 +74,8 @@ temp/
 # Frontend
 node_modules/
 web/dist/
+web/.vite-temp/
+web/.esbuild-tmp/
 .taste-skill/
 
 # 个人/非项目文件（勿提交）

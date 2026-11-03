@@ -6,9 +6,24 @@ import re
 from typing import List, Optional
 from ..config import settings
 
+# 分诊追问答案的特征（时长 / 程度 / 体温 / 伴随症状选项）
+# 用于在「短文本→药品名」兜底规则之前拦截，避免把选项答案误判为药品查询
+_TRIAGE_ANSWER_RE = re.compile(
+    r"(?:今天|昨天|前天|今早|昨晚|刚才|刚刚|好几天|几天|反复发作|一直|持续)"
+    r"|[一二两三四五六七八九十\d]+\s*(?:分钟|小时|天|日|周|星期|个月|年)"
+    r"|(?:轻微|轻度|中度|重度|严重|剧烈|很痛|痛得|疼得|不影响|影响活动|有点难受|好一些|好多了|加重)"
+    r"|3[5-9](?:\.\d)?\s*(?:度|℃)|38\.5|没量过"
+    r"|没有其他症状|有发热|有呕吐|有腹泻|有皮疹|没有其他"
+)
+
 
 class NLPProcessor:
     """简单的NLP处理器 - 基于规则"""
+
+    @staticmethod
+    def looks_like_triage_answer(text: str) -> bool:
+        """判断短文本是否像是分诊追问的答案（而不是药品名）"""
+        return bool(_TRIAGE_ANSWER_RE.search(text or ""))
 
     @staticmethod
     def detect_intent(text: str) -> str:
@@ -42,8 +57,18 @@ class NLPProcessor:
         if any(keyword in text for keyword in query_keywords):
             return "drug_query"
 
-        # 5. 消息很短且不像自然语言(可能是直接输入药名),也当作药品查询
-        if len(text.strip()) <= 10 and not text.strip().endswith("?") and not text.strip().endswith("？"):
+        # 5. 对上一轮追问的回答（时长/程度/体温/伴随症状）
+        #    必须在「短文本→药品查询」兜底之前判断，否则「今天刚开始」会被当成药品名。
+        if NLPProcessor.looks_like_triage_answer(text) and not any(
+            keyword in text for keyword in ("药", "查", "介绍", "处方")
+        ):
+            return "symptom_inquiry"
+
+        # 6. 消息很短且不像自然语言(可能是直接输入药名),也当作药品查询
+        if (
+            len(text.strip()) <= 10
+            and not text.strip().endswith(("?", "？", "吗", "呢"))
+        ):
             greetings = ["你好", "您好", "hi", "hello", "在吗", "谢谢"]
             if not any(g in text_lower for g in greetings):
                 return "drug_query"
@@ -69,6 +94,15 @@ class NLPProcessor:
                 symptoms.append(symptom)
 
         return symptoms
+
+    @staticmethod
+    def is_triage_answer_only(text: str) -> bool:
+        """是否只是对追问的补充回答（不含具体症状词）
+
+        「今天刚开始」「轻微」「38.5度」→ True；
+        「我头痛两天了」→ False（仍是完整的症状陈述，不是单纯回答）。
+        """
+        return NLPProcessor.looks_like_triage_answer(text) and not NLPProcessor.extract_symptoms(text)
 
     @staticmethod
     def extract_drug_names(text: str) -> List[str]:

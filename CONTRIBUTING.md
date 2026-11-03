@@ -26,10 +26,10 @@
 
 ## 开发约定
 
-- 后端使用 Python 3.9+，遵循 PEP 8；
-- 数据库结构变更需同步更新 `database/schema.sql`；
+- 后端使用 Python 3.10+，遵循 PEP 8；
+- 数据库结构变更需同步更新 `database/schema.sql` 与 `database/migrations/`；
 - 新增 API 需更新 `docs/API.md`；
-- 前端保持原生 JS，不引入构建工具（除非另行讨论）。
+- 前端使用 React + Vite（`web/src`），改动后需运行 `npm run build` 并通过页面验证。
 
 ## 提交前检查清单
 

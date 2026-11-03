@@ -2,7 +2,7 @@
 
 ## 系统要求
 
-- Python 3.9+
+- Python 3.10+
 - PostgreSQL 12+
 
 > 无需单独运行 Redis / Celery 服务（后端启动不依赖它们）。
