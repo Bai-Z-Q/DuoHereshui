@@ -30,7 +30,8 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # 数据库连接、密钥等敏感配置全部由 Render/Railway 等平台环境变量注入，不写入镜像
 ENV PYTHONPATH=/app
-EXPOSE 8000
+# 8000: Render / 本地 Docker；7860: Hugging Face Spaces
+EXPOSE 8000 7860
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

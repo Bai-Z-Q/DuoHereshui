@@ -162,15 +162,17 @@ python backend/tests/smoke_agent_api.py --base http://127.0.0.1:8000
 
 ## 公网部署
 
-推荐 **Render 免费 Web Service + Neon 免费 PostgreSQL**，仓库已包含 `render.yaml` 和部署脚本：
+两种免费方案：
 
-- 步骤见 [docs/DEPLOY_RENDER_NEON.md](docs/DEPLOY_RENDER_NEON.md)
-- Docker 构建、建表、Agent 平台迁移会自动执行
-- 部署后建议关闭注册、锁定全局模型配置，避免公开环境被随意使用
+- **Hugging Face Spaces + Neon**（无需信用卡）：[docs/DEPLOY_HF_SPACES.md](docs/DEPLOY_HF_SPACES.md)
+- **Render + Neon**（Render 免费版需要绑卡验证）：[docs/DEPLOY_RENDER_NEON.md](docs/DEPLOY_RENDER_NEON.md)
+
+仓库已包含 `render.yaml`、Docker 构建、自动建表与 Agent 平台迁移；HF 方案使用 `deploy/prepare_hf_space.ps1` 组装 Space 目录。
 
 ## 文档
 
 - [Agent 平台实现说明](docs/AGENT_PLATFORM.md)：架构、数据表、接口、与完善方案的对照及未实现项
+- [Hugging Face Spaces + Neon 部署](docs/DEPLOY_HF_SPACES.md)
 - [Render + Neon 免费部署](docs/DEPLOY_RENDER_NEON.md)
 - [API 文档](docs/API.md)
 - [安装说明](docs/INSTALL.md) / [用户指南](docs/USER_GUIDE.md)

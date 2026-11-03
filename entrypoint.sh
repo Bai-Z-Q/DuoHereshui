@@ -8,10 +8,19 @@ echo "== Agent 平台迁移（幂等：记忆 / RAG / trace / 反馈 / 主动能
 python /app/database/migrate_agent_platform.py
 
 echo "== 启动后端 =="
+# Render 会注入 PORT；Hugging Face Spaces 会注入 SPACE_ID，默认端口为 7860
+APP_PORT="${PORT:-}"
+if [ -z "$APP_PORT" ]; then
+  if [ -n "${SPACE_ID:-}" ]; then
+    APP_PORT=7860
+  else
+    APP_PORT=8000
+  fi
+fi
 cd /app/backend
 exec uvicorn app.main:app \
   --host 0.0.0.0 \
-  --port "${PORT:-8000}" \
+  --port "$APP_PORT" \
   --workers 1 \
   --proxy-headers \
   --forwarded-allow-ips="*"
