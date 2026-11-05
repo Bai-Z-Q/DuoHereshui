@@ -86,22 +86,19 @@ DuoHereshui/
 │   ├── cleanup_test_users.py    # 清理测试账号
 │   └── recent_chat.py           # 查看近期对话与 trace（只读）
 ├── crawler/                     # 可选：百度百科药品数据采集
-├── deploy/
-│   └── prepare_hf_space.ps1     # 组装 Hugging Face Space 目录
-├── docs/                        # 架构、API、部署与使用文档
-├── Dockerfile                   # 多阶段构建：前端构建 + 后端运行
-├── entrypoint.sh                # 容器入口：等待数据库、自动建表与迁移
-├── render.yaml                  # Render Blueprint（Docker + Neon）
+├── docs/                        # 架构、API、安装与使用文档
 ├── .env.example
 ├── LICENSE
 └── README.md
 ```
 
+仓库只包含项目本体，容器镜像与云平台部署配置不在版本库内。
+
 ## 快速开始
 
 ### 1. 环境要求
 
-- Python 3.10 及以上（LangGraph 1.x 的最低要求；已在 Python 3.14 与容器内 3.12 验证）
+- Python 3.10 及以上（LangGraph 1.x 的最低要求；已在 Python 3.14 与 3.12 验证）
 - PostgreSQL 12 及以上
 - Node.js 20 及以上（构建前端）
 
@@ -122,8 +119,8 @@ cp .env.example .env
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | 否 | 任何 OpenAI 兼容接口；留空则降级为规则版 |
 | `AGENT_ENGINE` | 否 | `langgraph` / `legacy` / `auto`，默认 `langgraph` |
 | `EMBEDDING_ENABLED` | 否 | 默认 `false`，使用 BM25；开启需另配 embeddings 服务 |
-| `REGISTRATION_ENABLED` / `ALLOW_LLM_SETTINGS` | 否 | 公网部署安全开关：关闭注册、锁定全局模型配置 |
-| `CORS_ORIGINS` | 否 | 后端直接托管前端时为同源部署，可不配 |
+| `REGISTRATION_ENABLED` / `ALLOW_LLM_SETTINGS` | 否 | 公网运行安全开关：关闭注册、锁定全局模型配置 |
+| `CORS_ORIGINS` | 否 | 前后端同源（后端托管前端）时可不配 |
 
 完整变量与注释见 `.env.example`。
 
@@ -191,25 +188,10 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-覆盖护栏、分诊、记忆、RAG、漏服计算、编排器、鉴权、部署配置等模块。端到端冒烟需后端已运行，脚本会自动创建并清理测试账号：
+覆盖护栏、分诊、记忆、RAG、漏服计算、编排器、鉴权、数据库连接与配置锁等模块。端到端冒烟需后端已运行，脚本会自动创建并清理测试账号：
 
 ```bash
 python backend/tests/smoke_agent_api.py --base http://127.0.0.1:8000
-```
-
-## 部署
-
-| 方案 | 适用场景 | 前置条件 | 说明 |
-|---|---|---|---|
-| Cloudflare Tunnel / Tailscale Funnel | 无卡、临时演示 | 本机常开 | [docs/DEPLOY_TUNNEL.md](docs/DEPLOY_TUNNEL.md) |
-| Render + Neon | 免费 Web Service | 需绑卡完成身份验证（1 美元临时预授权，不扣费） | [docs/DEPLOY_RENDER_NEON.md](docs/DEPLOY_RENDER_NEON.md) |
-| Hugging Face Docker Space | 已有 PRO 订阅 | 2026-11 起不再支持免费 Docker | [docs/DEPLOY_HF_SPACES.md](docs/DEPLOY_HF_SPACES.md) |
-
-本地也可直接使用容器，镜像已包含前端构建产物，入口脚本会先执行建表与迁移，再启动后端：
-
-```bash
-docker build -t medical-assistant .
-docker run --env-file .env -p 8000:8000 medical-assistant
 ```
 
 ## 文档
@@ -220,9 +202,6 @@ docker run --env-file .env -p 8000:8000 medical-assistant
 | [docs/API.md](docs/API.md) | 接口分组与主要字段 |
 | [docs/INSTALL.md](docs/INSTALL.md) | 安装与初始化细节 |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 功能使用说明 |
-| [docs/DEPLOY_TUNNEL.md](docs/DEPLOY_TUNNEL.md) | 无卡公网演示 |
-| [docs/DEPLOY_RENDER_NEON.md](docs/DEPLOY_RENDER_NEON.md) | Render + Neon 部署 |
-| [docs/DEPLOY_HF_SPACES.md](docs/DEPLOY_HF_SPACES.md) | Hugging Face Spaces 部署 |
 
 ## 数据来源
 

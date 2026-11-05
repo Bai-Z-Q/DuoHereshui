@@ -1,7 +1,6 @@
-# 统一换行符，避免 Linux 容器里的 entrypoint.sh / Dockerfile 因 CRLF 启动失败
+# 统一换行符，脚本与源码类文件使用 LF，避免跨平台执行差异
 * text=auto
 *.sh text eol=lf
-Dockerfile text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
 *.py text eol=lf

@@ -106,3 +106,11 @@ project.private.config.json
 /技术架构设计方案.md
 /Agent项目市场调研_2026-11.md
 /OPTIMIZATION_PLAN.md
+
+# ===== 部署配置与部署文档（仅本地保留，仓库只放项目本体）=====
+/Dockerfile
+/entrypoint.sh
+/render.yaml
+/.dockerignore
+/deploy/
+/docs/DEPLOY_*.md
