@@ -5,6 +5,7 @@ FastAPI 主应用入口
 v1.2 起新增：记忆中心 / 知识库 / 可观测 / 主动能力 / 数据导出 路由，
 启动时自动检查数据库并兜底构建 RAG 索引。
 """
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -15,6 +16,8 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings as app_settings
 from .database import test_db_connection, test_redis_connection
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -148,25 +151,28 @@ app.include_router(care.router, prefix="/api", tags=["主动能力"])
 app.include_router(export.router, prefix="/api", tags=["数据导出"])
 
 # ============================================================
-# 前端静态文件（优先 React 构建产物 web/dist，回退旧版 frontend）
+# 前端静态文件（React 构建产物 web/dist，由 Vite 生成）
 # ============================================================
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DIST_DIR = os.path.join(PROJECT_ROOT, "web", "dist")
-FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
 
-WEB_DIR = DIST_DIR if os.path.isdir(DIST_DIR) else FRONTEND_DIR
-
-if os.path.isdir(WEB_DIR):
-    app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
-    if WEB_DIR == DIST_DIR:
-        app.mount("/assets", StaticFiles(directory=os.path.join(WEB_DIR, "assets")), name="assets")
-    else:
-        app.mount("/css", StaticFiles(directory=os.path.join(WEB_DIR, "css")), name="css")
-        app.mount("/js", StaticFiles(directory=os.path.join(WEB_DIR, "js")), name="js")
+if os.path.isdir(DIST_DIR):
+    app.mount("/static", StaticFiles(directory=DIST_DIR), name="static")
+    app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")), name="assets")
 
     @app.get("/")
     async def serve_index():
-        return FileResponse(os.path.join(WEB_DIR, "index.html"))
+        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+
+else:
+    logger.warning("未找到前端构建产物 web/dist，页面不可用；请先执行 cd web && npm install && npm run build")
+
+    @app.get("/")
+    async def serve_index_missing():
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "前端尚未构建，请先执行：cd web && npm install && npm run build"},
+        )
 
 
 if __name__ == "__main__":

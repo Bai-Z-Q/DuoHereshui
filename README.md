@@ -61,7 +61,6 @@ personal-medical-assistant/
 │       ├── components/        # 对话、记忆中心、安全洞察、用药等页面
 │       ├── api.js             # 后端接口封装
 │       └── styles/global.css
-├── frontend/                   # 旧版原生前端（保留回退）
 ├── database/                   # 数据库脚本
 │   ├── schema.sql             # 基础表结构
 │   ├── seed_data.sql / more_drugs.sql / supplement_drugs.sql
@@ -118,13 +117,15 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 5. 构建前端（可选，仓库已包含构建产物）
+### 5. 构建前端（必需：仓库不含构建产物）
 
 ```bash
 cd web
 npm install
 npm run build
 ```
+
+> `web/dist` 不入库（见 `.gitignore`），后端启动后由 FastAPI 托管该目录；未构建时访问首页会返回 503 提示。
 
 ### 6. 访问
 

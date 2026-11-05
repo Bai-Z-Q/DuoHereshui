@@ -5,7 +5,11 @@
 **/.env
 backend/.env
 crawler/.env
-frontend/.env
+
+# ===== 设计草稿与本地工程配置（镜像内不需要） =====
+logo-concepts
+project.config.json
+project.private.config.json
 
 # ===== 用户个人文件 =====
 简历项目描述.md

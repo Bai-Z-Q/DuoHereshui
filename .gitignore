@@ -92,3 +92,17 @@ test_system.py
 database/add_auth_columns.py
 database/create_sessions_table.py
 database/create_medications.py
+
+# ===== 设计草稿与素材（个人创作过程，不入库）=====
+logo-concepts/
+
+# ===== 微信小程序 / 编辑器本地工程配置（含 appid，不入库）=====
+project.config.json
+project.private.config.json
+
+# ===== 内部规划文档（仅本地保留，不上传 GitHub）=====
+/个人医疗管家Agent产品需求文档.md
+/个人医疗管家Agent功能完善方案.md
+/技术架构设计方案.md
+/Agent项目市场调研_2026-11.md
+/OPTIMIZATION_PLAN.md
