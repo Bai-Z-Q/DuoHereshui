@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""部署配置回归测试：Neon SSL、公网模型配置锁"""
+"""配置兼容回归测试：数据库连接串 SSL 解析、公网模型配置锁"""
 import sys
 from pathlib import Path
 
