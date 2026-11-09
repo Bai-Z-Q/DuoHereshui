@@ -60,6 +60,32 @@ SYNONYMS = {
     "老年": ["老年人"],
 }
 
+# 口语症状 -> 知识库规范章节名（检索侧扩展，弥补二元组分词与同义词缺口）
+# 键名必须是科普文档章节标题的子串，便于标题/章节显式命中。
+SYMPTOM_ALIASES: Dict[str, List[str]] = {
+    "胃部不适": [
+        "胃不舒服", "胃疼", "胃痛", "胃胀", "肚子胀", "上腹胀", "隐痛",
+        "肚子隐痛", "肚子咕咕叫", "肠鸣", "消化不良", "反酸", "烧心",
+        "反胃", "上腹不适", "腹痛", "肚子疼", "肚子痛", "上腹痛",
+    ],
+    "腹泻与呕吐": ["拉肚子", "稀便", "水样便", "跑肚", "腹泻", "上吐下泻"],
+    "头痛": ["头疼", "偏头痛", "脑袋疼", "头部胀痛"],
+    "发热": ["发烧", "体温高", "低烧", "高烧", "烧到"],
+    "咳嗽与咽痛": ["咳嗽", "干咳", "咳痰", "嗓子痒咳", "嗓子疼", "喉咙痛", "咽痛"],
+    "鼻塞流涕": ["鼻塞", "流鼻涕", "流涕", "打喷嚏", "鼻炎"],
+    "皮疹与瘙痒": ["皮疹", "瘙痒", "荨麻疹", "风团", "起疹子", "皮肤过敏"],
+}
+
+
+def expand_symptom_canonical(text: str) -> List[str]:
+    """把口语症状映射到知识库规范章节名，供标题/章节命中与 BM25 扩展。"""
+    text = text or ""
+    canonicals: List[str] = []
+    for canonical, aliases in SYMPTOM_ALIASES.items():
+        if canonical in text or any(alias in text for alias in aliases):
+            canonicals.append(canonical)
+    return list(dict.fromkeys(canonicals))
+
 
 def normalize_text(text: str) -> str:
     """统一空白与中英文标点（保留分句用标点）"""

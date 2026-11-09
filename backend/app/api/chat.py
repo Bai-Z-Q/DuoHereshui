@@ -58,9 +58,10 @@ def _load_profile(db: Session, user_id: str) -> Dict:
 
 
 def _load_history(db: Session, session_id: str, limit: int = 10) -> List[Dict]:
+    """加载对话历史，包含上下文窗口支持"""
     rows = db.execute(
         text(
-            """SELECT message_role, message_content
+            """SELECT message_role, message_content, metadata
                FROM conversation_history
                WHERE session_id = :sid
                ORDER BY timestamp DESC LIMIT :l"""
@@ -70,7 +71,16 @@ def _load_history(db: Session, session_id: str, limit: int = 10) -> List[Dict]:
     history = []
     for row in reversed(rows):
         role = row[0] if row[0] in ("user", "assistant") else "user"
-        history.append({"role": role, "content": row[1]})
+        content = row[1]
+        metadata = row[2] or {}
+
+        # 对于assistant消息，如果有上下文引用则附加到内容中
+        if role == "assistant" and metadata.get("context_window"):
+            context_refs = metadata["context_window"]
+            if context_refs:
+                content = f"{content}\n[参考上文: {', '.join(context_refs[:3])}]"
+
+        history.append({"role": role, "content": content})
     return history
 
 

@@ -134,7 +134,7 @@ async def health_check():
 # ============================================================
 # 路由注册
 # ============================================================
-from .api import auth, care, chat, drugs, export, knowledge, medications, memory, observability, safety, users
+from .api import auth, care, chat, drugs, export, feedback, knowledge, medications, memory, observability, safety, users
 from .api import settings as settings_api
 
 app.include_router(auth.router, prefix="/api", tags=["认证"])
@@ -142,6 +142,7 @@ app.include_router(chat.router, prefix="/api", tags=["对话"])
 app.include_router(drugs.router, prefix="/api", tags=["药品"])
 app.include_router(users.router, prefix="/api", tags=["用户"])
 app.include_router(medications.router, prefix="/api", tags=["用药管理"])
+app.include_router(feedback.router, prefix="/api", tags=["用药反馈"])
 app.include_router(safety.router, prefix="/api", tags=["安全检查"])
 app.include_router(settings_api.router, prefix="/api", tags=["设置"])
 app.include_router(memory.router, prefix="/api", tags=["记忆中心"])

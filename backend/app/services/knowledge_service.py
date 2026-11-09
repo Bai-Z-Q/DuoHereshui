@@ -26,6 +26,7 @@ from ..agent import embeddings as emb
 from ..agent.text import (
     BM25,
     expand_query_tokens,
+    expand_symptom_canonical,
     keyword_string,
     normalize_scores,
     snippet,
@@ -61,6 +62,10 @@ SECTION_KEYWORDS = {
 }
 
 QUERY_STOP_TERMS = {"什么", "么药", "吃什", "怎么", "为何", "哪些", "可以", "能不", "不能"}
+# 过于通用、在说明书与科普中高频出现的词，不参与标题/章节/正文的显式命中判定
+GENERIC_OVERLAP_TERMS = {
+    "不适", "偶尔", "吃了", "有点", "症状", "情况", "时候", "感觉", "问题",
+}
 SIDE_EFFECT_SECTIONS = ("不良反应", "储存")
 SPECIAL_GROUP_WORDS = (
     "孕妇", "孕期", "怀孕", "妊娠", "哺乳", "母乳", "儿童", "孩子", "宝宝",
@@ -324,13 +329,16 @@ def search(db: Session, query: str, top_k: int = 6) -> List[Dict]:
     if not rows:
         return []
 
+    canonicals = expand_symptom_canonical(query)
+    expanded_query = query + " " + " ".join(canonicals)
+
     corpus = []
     for row in rows:
         corpus.append(
             (row[3] or "") + " " + (row[4] or "") + " " + (row[5] or "") + " " + (row[6] or "")
         )
     bm25 = BM25([expand_query_tokens(text_value) for text_value in corpus])
-    lexical = normalize_scores(bm25.scores(expand_query_tokens(query)))
+    lexical = normalize_scores(bm25.scores(expand_query_tokens(expanded_query)))
 
     intent_sections: List[str] = []
     for keyword, sections in SECTION_KEYWORDS.items():
@@ -339,8 +347,12 @@ def search(db: Session, query: str, top_k: int = 6) -> List[Dict]:
 
     from ..agent.text import tokenize as _tokenize
 
-    query_terms = [term for term in dict.fromkeys(_tokenize(query)) if len(term) >= 2]
-    query_terms = [term for term in query_terms if term not in QUERY_STOP_TERMS]
+    query_terms = [term for term in dict.fromkeys(_tokenize(expanded_query)) if len(term) >= 2]
+    query_terms = [
+        term
+        for term in query_terms
+        if term not in QUERY_STOP_TERMS and term not in GENERIC_OVERLAP_TERMS
+    ]
     asks_side_effect = any(word in query for word in ("副作用", "不良反应", "储存", "保存", "过期"))
     asks_special_group = any(word in query for word in SPECIAL_GROUP_WORDS)
 
@@ -351,35 +363,51 @@ def search(db: Session, query: str, top_k: int = 6) -> List[Dict]:
         section = row[4] or ""
         content = row[5] or ""
 
+        hits_title = [term for term in query_terms if term in title]
+        hits_section = [term for term in query_terms if term in section]
+        content_overlap = [term for term in query_terms if term in content]
+        title_exact = bool(title and title in query)
+        explicit_hit = title_exact or bool(hits_title) or bool(hits_section)
+        overlap_terms = hits_title + hits_section + content_overlap
+        haystack = title + section + content
+        special_hit = asks_special_group and any(
+            word in haystack for word in SPECIAL_GROUP_WORDS
+        )
+
         # 规则 Rerank 1：药品名/文档名精确出现在查询中
-        if title and title in query:
+        if title_exact:
             score += 0.25
-        # 规则 Rerank 2：查询关键词命中标题或章节
-        if any(term in title for term in query_terms):
+        # 规则 Rerank 2：查询关键词命中标题或章节（章节命中权重更高，对齐科普章节名）
+        if hits_title:
             score += 0.12
-        if any(term in section for term in query_terms):
-            score += 0.18
+        if hits_section:
+            score += 0.22
         # 规则 Rerank 3：章节意图匹配（如"禁忌""怎么吃"）
         if any(intent in section for intent in intent_sections):
             score += 0.12
-        # 规则 Rerank 4：症状/用药咨询优先科普文档（说明书不良反应常含症状词，易误召回）
-        if row[1] == "guideline":
+        # 规则 Rerank 4：症状/用药咨询优先科普文档；仅在有词面重叠或显式命中时加权，
+        # 避免零重叠的无关科普被无条件抬进 top_k
+        if row[1] == "guideline" and (lexical[index] >= 0.05 or explicit_hit):
             score += 0.15
         # 规则 Rerank 5：特殊人群问题优先人群用药章节，避免直接推荐药品
-        if asks_special_group:
-            haystack = title + section + content
-            if row[1] == "guideline" and any(word in haystack for word in SPECIAL_GROUP_WORDS):
+        if special_hit:
+            if row[1] == "guideline":
                 score += 0.3
-            elif row[1] == "drug_label" and section in ("禁忌", "注意事项") and any(
-                word in haystack for word in SPECIAL_GROUP_WORDS
-            ):
+            elif row[1] == "drug_label" and section in ("禁忌", "注意事项"):
                 score += 0.12
         # 规则 Rerank 6：非相关章节降权，短碎片降权
-        if row[1] == "drug_label" and section in SIDE_EFFECT_SECTIONS and not asks_side_effect:
-            score *= 0.5
+        is_side_effect = row[1] == "drug_label" and section in SIDE_EFFECT_SECTIONS
+        if is_side_effect and not asks_side_effect:
+            score *= 0.25
         if len(content) < 60:
             score *= 0.75
 
+        # 相关性下限：无任何词面重叠、非药名精确命中、也不命中特殊人群规则时，
+        # BM25 残留分不构成相关性
+        if not title_exact and not overlap_terms and not special_hit:
+            continue
+        if not explicit_hit and lexical[index] < 0.08:
+            continue
         if score <= 0:
             continue
         candidates.append(

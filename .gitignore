@@ -114,3 +114,14 @@ project.private.config.json
 /.dockerignore
 /deploy/
 /docs/DEPLOY_*.md
+
+# ===== 设计过程、制作素材与视频（本地保留，不入库）=====
+.creative-design/
+00_制作控制/
+videos/
+web/.tmp_build/
+
+# ===== 内部文档（仅本地保留）=====
+/产品落地优化建议报告.md
+/产品落地优化建议报告_修正版.md
+/功能改进说明.md

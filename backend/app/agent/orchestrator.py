@@ -257,8 +257,13 @@ class MedicalOrchestrator:
 
             # ---------------- 检索 Worker ----------------
             # 追问答案场景用分诊合并后的上下文检索（症状+回答），
-            # 避免拿"今天刚开始"这种纯回答文本去查药品库/知识库。
-            retrieval_query = triage_result.context_text or user_message
+            # 避免拿"今天刚开始"这种纯回答文本去查药品库/知识库；
+            # 若追问答案没有任何症状上下文（孤立选项文本），跳过检索，不产生无关引用。
+            if intent == "triage_answer" and not triage_result.symptoms:
+                retrieval_query = ""
+            else:
+                base_text = triage_result.context_text or user_message
+                retrieval_query = " ".join([*triage_result.symptoms, base_text]).strip()
             retrieval = (
                 self._safe(
                     trace,

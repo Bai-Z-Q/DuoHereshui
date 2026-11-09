@@ -12,11 +12,10 @@ function pushHistory(key, name) {
 }
 
 export default function DrugsPage({ detail = false }) {
-  const { toast, drugsQuery, setDrugsQuery, switchView, addMedByDrug, setView, checkDrugSafety } = useApp()
+  const { toast, drugsQuery, setDrugsQuery, switchView, addMedByDrug, checkDrugSafety, selectedDrug, openDrugDetail, clearSelectedDrug } = useApp()
   const [kw, setKw] = useState('')
   const [results, setResults] = useState(null) // null=未搜索, [] = 无结果
   const [chips, setChips] = useState([])
-  const [drug, setDrug] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const doSearch = useCallback(async (keyword) => {
@@ -42,27 +41,15 @@ export default function DrugsPage({ detail = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drugsQuery])
 
-  // 详情模式
-  useEffect(() => {
-    if (detail && !drug) { /* 由 viewDrugDetail 预先设置 drug */ }
-  }, [detail, drug])
-
-  const viewDrugDetail = async (drugId) => {
-    try {
-      const d = await api.getDrugDetail(drugId)
-      setDrug(d)
-      switchView('drug-detail')
-    } catch (e) { toast('获取药品详情失败', 'error') }
-  }
-
   const checkSafety = (drugId) => {
     checkDrugSafety(drugId)
   }
 
-  const backToList = () => { setDrug(null); switchView('drugs') }
+  const backToList = () => { clearSelectedDrug(); switchView('drugs') }
 
   // ===== 详情视图 =====
-  if (detail && drug) {
+  if (detail && selectedDrug) {
+    const drug = selectedDrug
     return (
       <section className="view active" id="view-drug-detail">
         <a className="btn-link" style={{ marginBottom: 16, display: 'inline-block' }} onClick={backToList}>← 返回查询</a>
@@ -110,7 +97,7 @@ export default function DrugsPage({ detail = false }) {
         {results !== null && results.length === 0 && <p style={{ color: 'var(--muted)', padding: 20 }}>未找到相关药品，换个关键词试试</p>}
         {results && results.map(d => (
           <GlareHover key={d.drug_id} borderRadius="12px" glareOpacity={0.15} width="100%">
-            <div className="drug-item" onClick={() => viewDrugDetail(d.drug_id)} style={{ width: '100%' }}>
+            <div className="drug-item" onClick={() => openDrugDetail(d.drug_id)} style={{ width: '100%' }}>
               <div>
                 <div className="drug-name">{d.generic_name}
                   <span className={`drug-badge ${d.is_otc ? 'badge-otc' : 'badge-rx'}`}>{d.is_otc ? 'OTC' : '处方药'}</span>

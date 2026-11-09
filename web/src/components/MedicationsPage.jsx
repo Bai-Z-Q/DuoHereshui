@@ -3,6 +3,7 @@ import { useApp } from '../App.jsx'
 import * as api from '../api'
 import { marked } from 'marked'
 import ReminderTimes, { parseReminderTimes } from './ReminderTimes.jsx'
+import FeedbackModal from './FeedbackModal.jsx'
 
 const escapeHtml = (text) => String(text || '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -31,17 +32,21 @@ export default function MedicationsPage() {
   const [report, setReport] = useState(null)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
+  const [feedbackMed, setFeedbackMed] = useState(null)
+  const [recentFeedback, setRecentFeedback] = useState(null)
 
   const loadAll = useCallback(async () => {
     try {
-      const [t, m, d] = await Promise.all([
+      const [t, m, d, rf] = await Promise.all([
         api.loadMedToday(),
         api.loadMedications(),
         api.careDashboard().catch(() => null),
+        api.getRecentFeedback(7).catch(() => null),
       ])
       setToday(t)
       setMeds(m)
       setDashboard(d)
+      setRecentFeedback(rf)
     } catch (e) { console.warn('加载用药失败', e) }
   }, [])
 
@@ -200,6 +205,19 @@ export default function MedicationsPage() {
     } catch (e) { toast(e.message, 'error') }
   }
 
+  const openFeedbackModal = (med) => {
+    setFeedbackMed(med)
+  }
+
+  const closeFeedbackModal = () => {
+    setFeedbackMed(null)
+  }
+
+  const handleFeedbackSuccess = (msg) => {
+    toast(msg)
+    loadAll()
+  }
+
   const adherence = dashboard?.adherence
   const missed = dashboard?.missed_doses || []
   const alerts = dashboard?.alerts || []
@@ -279,6 +297,39 @@ export default function MedicationsPage() {
         </div>
       )}
 
+      {recentFeedback && recentFeedback.summary.total_feedback > 0 && (
+        <div className="feedback-summary-panel">
+          <div className="feedback-summary-head">
+            <b>最近7天用药反馈</b>
+            <span className="muted-text">共 {recentFeedback.summary.total_feedback} 条</span>
+          </div>
+          <div className="feedback-stats">
+            {recentFeedback.summary.average_rating && (
+              <div className="stat-item">
+                <span className="stat-label">平均评分</span>
+                <span className="stat-value">{recentFeedback.summary.average_rating} / 5</span>
+              </div>
+            )}
+            <div className="stat-item">
+              <span className="stat-label">有副作用记录</span>
+              <span className="stat-value">{recentFeedback.summary.with_side_effects} 条</span>
+            </div>
+          </div>
+          {recentFeedback.feedback.slice(0, 3).map((fb) => (
+            <div key={fb.feedback_id} className="feedback-item-mini">
+              <b>{fb.drug_name}</b>
+              <span className="muted-text">{fb.feedback_date}</span>
+              {fb.effectiveness_rating && (
+                <span className="rating-badge">评分: {fb.effectiveness_rating}/5</span>
+              )}
+              {fb.symptom_improvement && (
+                <p className="feedback-text">{fb.symptom_improvement}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="section-head" style={{ marginTop: 0 }}>今日提醒</div>
       <div className="med-today">
         {today.length === 0 && <p className="muted-text" style={{ padding: 12 }}>今天没有待服用的药。</p>}
@@ -299,6 +350,7 @@ export default function MedicationsPage() {
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button className="btn-primary-sm" onClick={() => logMed(m.medication_id, 'taken')}>已服</button>
                 <button className="btn-link" onClick={() => logMed(m.medication_id, 'missed')}>漏服</button>
+                <button className="btn-link" onClick={() => openFeedbackModal(m)}>记录反馈</button>
               </div>
             </div>
           )
@@ -377,6 +429,7 @@ export default function MedicationsPage() {
                 </div>
                 <div className="med-actions">
                   <button className="btn-link" onClick={() => startEdit(m)}>修改</button>
+                  <button className="btn-link" onClick={() => openFeedbackModal(m)}>记录反馈</button>
                   {m.is_active && <button className="btn-link" onClick={() => deactivate(m.medication_id)}>停用</button>}
                 </div>
               </div>
@@ -446,6 +499,14 @@ export default function MedicationsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {feedbackMed && (
+        <FeedbackModal
+          medication={feedbackMed}
+          onClose={closeFeedbackModal}
+          onSuccess={handleFeedbackSuccess}
+        />
       )}
     </section>
   )

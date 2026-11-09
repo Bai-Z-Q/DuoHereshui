@@ -3,7 +3,13 @@
 from pathlib import Path
 
 from app.agent.retrieval import RetrievalResult, RetrievalService
-from app.agent.text import BM25, normalize_scores, split_long_text, tokenize
+from app.agent.text import (
+    BM25,
+    expand_symptom_canonical,
+    normalize_scores,
+    split_long_text,
+    tokenize,
+)
 from app.services.knowledge_service import KNOWLEDGE_DIR, _chunk_id, _doc_chunks, _parse_doc
 
 
@@ -91,3 +97,10 @@ def test_format_context_uses_reference_numbers():
 def test_format_context_empty_is_explicit():
     text = RetrievalService.format_context(RetrievalResult(query="x"))
     assert "未检索到" in text
+
+
+def test_symptom_canonical_expansion_maps_colloquial():
+    assert "胃部不适" in expand_symptom_canonical("肚子咕咕叫，偶尔隐痛")
+    assert "腹泻与呕吐" in expand_symptom_canonical("拉肚子两天，水样便")
+    assert "头痛" in expand_symptom_canonical("头疼得厉害")
+    assert expand_symptom_canonical("奥美拉唑怎么吃") == []

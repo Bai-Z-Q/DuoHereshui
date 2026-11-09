@@ -259,7 +259,10 @@ async def retrieval_node(state: GraphState, ctx: GraphContext) -> Dict:
     # 追问答案场景用分诊合并后的上下文检索（症状+回答），
     # 避免拿"今天刚开始"这种纯回答文本去查药品库/知识库。
     triage_data = state.get("triage") or {}
-    retrieval_query = triage_data.get("context_text") or ctx.user_message
+    symptom_terms = triage_data.get("symptoms") or []
+    base_text = triage_data.get("context_text") or ctx.user_message
+    # 并入分诊识别出的规范症状名，避免口语描述与科普章节词面脱节
+    retrieval_query = " ".join([*symptom_terms, base_text]).strip()
     try:
         retrieval = RetrievalService.retrieve(ctx.db, retrieval_query)
         ctx.trace.add_step(

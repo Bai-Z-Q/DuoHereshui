@@ -176,6 +176,36 @@ class MedicationLogCreate(BaseModel):
     notes: Optional[str] = None
 
 
+# ==================== 用药反馈相关 ====================
+
+class MedicationFeedbackCreate(BaseModel):
+    """创建用药反馈"""
+    medication_id: int
+    log_id: Optional[int] = None
+    symptom_improvement: Optional[str] = Field(None, max_length=1000, description="症状改善情况")
+    side_effects: Optional[str] = Field(None, max_length=1000, description="副作用记录")
+    effectiveness_rating: Optional[int] = Field(None, ge=1, le=5, description="有效性评分 1-5")
+    notes: Optional[str] = Field(None, max_length=2000)
+
+
+class MedicationFeedbackResponse(BaseModel):
+    """用药反馈响应"""
+    feedback_id: int
+    user_id: str
+    medication_id: int
+    drug_name: Optional[str] = None
+    log_id: Optional[int] = None
+    feedback_date: date
+    symptom_improvement: Optional[str] = None
+    side_effects: Optional[str] = None
+    effectiveness_rating: Optional[int] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== 安全检查相关 ====================
 
 class SafetyCheckRequest(BaseModel):

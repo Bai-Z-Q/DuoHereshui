@@ -41,6 +41,7 @@ export default function App() {
   const [drugsQuery, setDrugsQuery] = useState(null)
   const [pendingMedAdd, setPendingMedAdd] = useState(null)
   const [pendingSafety, setPendingSafety] = useState(null)
+  const [selectedDrug, setSelectedDrug] = useState(null)
 
   // ---- Toast ----
   const toast = useCallback((msg, type = 'info') => {
@@ -165,6 +166,17 @@ export default function App() {
     setView('medications')
   }, [])
 
+  // ---- 药品详情：详情数据提升到 App 上下文，避免切换视图重挂载后丢失 ----
+  const openDrugDetail = useCallback(async (drugId) => {
+    try {
+      const d = await api.getDrugDetail(drugId)
+      setSelectedDrug(d)
+      setView('drug-detail')
+    } catch (e) { toast('获取药品详情失败', 'error') }
+  }, [toast])
+
+  const clearSelectedDrug = useCallback(() => setSelectedDrug(null), [])
+
   // ---- 药品详情 → 安全检查 ----
   const checkDrugSafety = useCallback((drugId) => {
     setPendingSafety(drugId)
@@ -184,6 +196,7 @@ export default function App() {
     quickSearch, drugsQuery, setDrugsQuery,
     pendingMedAdd, setPendingMedAdd, addMedByDrug,
     pendingSafety, setPendingSafety, checkDrugSafety,
+    selectedDrug, openDrugDetail, clearSelectedDrug,
   }
 
   return (

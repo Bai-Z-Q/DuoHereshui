@@ -345,6 +345,51 @@ export async function logMedicationAt(medId, scheduledTime, status) {
   return r.json();
 }
 
+// ---- 用药反馈 ----
+export async function createMedicationFeedback(data) {
+  const r = await apiFetch('/medications/feedback', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || '创建反馈失败');
+  }
+  return r.json();
+}
+
+export async function getMedicationFeedback(medicationId) {
+  const r = await apiFetch(`/medications/${medicationId}/feedback`);
+  if (!r.ok) throw new Error('获取反馈失败');
+  return r.json();
+}
+
+export async function getRecentFeedback(days = 7) {
+  const r = await apiFetch(`/medications/feedback/recent?days=${days}`);
+  if (!r.ok) throw new Error('获取反馈失败');
+  return r.json();
+}
+
+export async function updateMedicationFeedback(feedbackId, data) {
+  const r = await apiFetch(`/medications/feedback/${feedbackId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || '更新反馈失败');
+  }
+  return r.json();
+}
+
+export async function deleteMedicationFeedback(feedbackId) {
+  const r = await apiFetch(`/medications/feedback/${feedbackId}`, {
+    method: 'DELETE'
+  });
+  if (!r.ok) throw new Error('删除反馈失败');
+  return r.json();
+}
+
 // ---- 数据导出 ----
 export async function downloadMyData(format = 'json') {
   const r = await apiFetch(`/export/my-data?format=${format}`);
